@@ -1,19 +1,20 @@
 """
-Playwright scraper for Ferrari Approved, Cars.com and CarGurus.
+Playwright scraper for Ferrari Approved (preowned.ferrari.com), Cars.com and
+CarGurus.
 
 Listings are pulled from three places, most reliable first:
   1. JSON responses the page fetches in the background
   2. schema.org JSON-LD embedded in the page
-  3. the rendered listing cards (regex fallback)
-Detail pages are then visited (with a cache) to fill in interior/exterior
-color and dealer city when the search results don't include them.
+  3. the rendered listing cards (site-specific text parsing)
+Detail pages are then visited (with a cache) to fill in colors, dealer city
+and photos when the search results don't include them.
 """
 
 import asyncio
 import json
 import random
 import re
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 
 from playwright.async_api import async_playwright
 
@@ -66,6 +67,43 @@ CITY = ("dealerCity", "sellerCity", "city", "dealer.city", "dealer.address.city"
 STATE = ("dealerState", "sellerRegion", "state", "dealer.state",
          "dealer.address.state", "offers.seller.address.addressRegion",
          "address.addressRegion", "dealerAddress.state", "location.state")
+PHOTO_KEYS = ("images", "photos", "pictures", "photoUrls", "imageUrls", "image",
+              "media.photos", "primaryPhotoUrl", "mainPictureUrl", "pictureUrl",
+              "photoUrl", "imageUrl", "thumbnailUrl", "originalPictureData.url")
+
+
+def _photo_urls(val, base=""):
+    out = []
+    items = val if isinstance(val, list) else [val]
+    for it in items:
+        if isinstance(it, dict):
+            it = it.get("url") or it.get("src") or it.get("href") or it.get("contentUrl") or ""
+        if isinstance(it, str) and it:
+            u = urljoin(base, it.strip()) if base else it.strip()
+            if u.startswith("//"):
+                u = "https:" + u
+            if u.startswith("http") and not re.search(r"\.svg|logo|icon|sprite|placeholder", u, re.I):
+                out.append(u)
+    return out
+
+
+def photos_from(d, base=""):
+    out = []
+    for k in PHOTO_KEYS:
+        v = _get(d, k) if "." in k else (d.get(k) if isinstance(d, dict) else None)
+        if v:
+            out += _photo_urls(v, base)
+    return dedupe(out)
+
+
+def dedupe(urls):
+    seen, out = set(), []
+    for u in urls:
+        key = re.sub(r"[?#].*$", "", u)
+        if key not in seen:
+            seen.add(key)
+            out.append(u)
+    return out
 
 
 def looks_like_listing(d):
@@ -92,18 +130,26 @@ def walk_json(obj, found, depth=0):
             walk_json(v, found, depth + 1)
 
 
+def blank(source):
+    return {"source": source, "title": "", "year": "", "make": "", "model": "",
+            "trim": "", "body": "", "price": "", "mileage": "", "vin": "",
+            "exterior_color": "", "interior_color": "", "city": "", "state": "",
+            "location": "", "dealer": "", "url": "", "photos": []}
+
+
 def from_dict(d, source, base):
     url = str(first(d, "url", "vdpUrl", "detailUrl", "listingUrl", "link",
                     "href", "vehicleDetailUrl") or "")
     if url.startswith("/"):
         url = base.rstrip("/") + url
-    return {
-        "source": source,
+    r = blank(source)
+    r.update({
         "title": str(first(d, "title", "name", "listingTitle", "heading") or ""),
         "year": str(first(d, *YEAR) or ""),
         "make": str(first(d, "make", "makeName", "brand", "manufacturer") or ""),
         "model": str(first(d, "model", "modelName", "carModel", "modelDescription") or ""),
         "trim": str(first(d, "trim", "trimName", "version", "vehicleConfiguration") or ""),
+        "body": str(first(d, "bodyType", "bodyStyle", "bodyTypeName") or ""),
         "price": first(d, *PRICE),
         "mileage": first(d, *MILES),
         "vin": str(first(d, *VIN) or ""),
@@ -114,9 +160,11 @@ def from_dict(d, source, base):
         "location": str(first(d, "location", "sellerLocation", "dealerLocation") or ""),
         "dealer": str(first(d, "dealerName", "sellerName", "dealer.name",
                             "seller.name", "offers.seller.name",
-                            "serviceProviderName", "dealer") or ""),
+                            "serviceProviderName") or ""),
         "url": url,
-    }
+        "photos": photos_from(d, base),
+    })
+    return r
 
 
 # ---------------------------------------------------------------------------
@@ -143,8 +191,10 @@ async def extract_jsonld(page, source, base):
 
 CARD_SELECTORS = {
     "carscom": "div.vehicle-card, fuse-card",
-    "cargurus": "[data-testid='srp-tile'], [data-cg-ft='car-blade'], [data-testid='srp-listing-tile']",
-    "ferrari": "[class*='CarCard'], [class*='car-card'], [class*='VehicleCard'], [data-testid*='card']",
+    "cargurus": "[data-testid='srp-tile'], [data-cg-ft='car-blade'], "
+                "[data-testid='srp-listing-tile'], div[class*='listing-tile']",
+    "ferrari": "[class*='CarCard'], [class*='car-card'], [class*='VehicleCard'], "
+               "[class*='vehicle-card'], [data-testid*='card'], li:has(a[href*='/used-ferrari/'])",
 }
 
 NEXT_SELECTORS = {
@@ -152,8 +202,41 @@ NEXT_SELECTORS = {
     "cargurus": "button[data-testid='srp-desktop-page-navigation-next-page'], "
                 "button[aria-label='Next page'], a[aria-label='Next page']",
     "ferrari": "button:has-text('Load more'), button:has-text('Show more'), "
-               "button:has-text('View more')",
+               "button:has-text('View more'), a[aria-label='Next page'], "
+               "button[aria-label='Next page']",
 }
+
+# "2025 1,911 mi FERRARI APPROVED 296 GTS $450,411 exterior color Argento
+#  Nurburgring interior color Nero Available at Continental Autosports"
+FERRARI_RE = re.compile(
+    r"\b(20\d\d)\s+([\d,]+)\s*mi\b\s+(?:FERRARI APPROVED\s+)?(.+?)\s+"
+    r"(\$\s?[\d,]+|Price on request)\s+exterior(?:\s+colou?r)?\s+(.+?)\s+"
+    r"interior(?:\s+colou?r)?\s+(.+?)\s+Available at\s+(.+?)"
+    r"(?=\s+(?:NEW\s+)?(?:tailor made\s+)?20\d\d\s+[\d,]+\s*mi\b|\s*$)", re.I)
+
+
+def parse_ferrari_text(text, rec):
+    m = FERRARI_RE.search(re.sub(r"\s+", " ", text))
+    if not m:
+        return False
+    y, mi, model, price, ext, intr, dealer = m.groups()
+    rec.update(year=y, mileage=mi, title=f"{y} Ferrari {model}", model=model,
+               price="" if "request" in price.lower() else price,
+               exterior_color=ext, interior_color="" if intr.strip() == "-" else intr,
+               dealer=dealer.strip(), make="Ferrari")
+    return True
+
+
+async def card_photos(card, base):
+    try:
+        srcs = await card.eval_on_selector_all(
+            "img, source",
+            """els => els.map(e => e.currentSrc || e.getAttribute('src') ||
+                     e.getAttribute('data-src') ||
+                     (e.getAttribute('srcset')||e.getAttribute('data-srcset')||'').split(' ')[0] || '')""")
+    except Exception:
+        return []
+    return _photo_urls([s for s in srcs if s and not s.startswith("data:")], base)
 
 
 async def extract_cards(page, key, source, base):
@@ -163,34 +246,32 @@ async def extract_cards(page, key, source, base):
             text = (await c.inner_text()).strip()
         except Exception:
             continue
-        if not text:
+        if not text or not re.search(r"\b20\d\d\b", text):
             continue
         link = await c.query_selector("a[href]")
         href = (await link.get_attribute("href")) if link else ""
-        if href and href.startswith("/"):
-            href = base + href
+        href = urljoin(base, href) if href else ""
 
-        details = await c.get_attribute("data-vehicle-details")  # Cars.com
         rec = None
+        details = await c.get_attribute("data-vehicle-details")  # Cars.com
         if details:
             try:
                 rec = from_dict(json.loads(details), source, base)
             except Exception:
                 rec = None
-        if rec is None:
-            rec = {"source": source, "title": "", "year": "", "make": "", "model": "",
-                   "trim": "", "price": "", "mileage": "", "vin": "",
-                   "exterior_color": "", "interior_color": "", "city": "",
-                   "state": "", "location": "", "dealer": "", "url": ""}
+        rec = rec or blank(source)
+        if key == "ferrari":
+            parse_ferrari_text(text, rec)
+
         lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
         if not rec["title"]:
-            rec["title"] = next((ln for ln in lines if re.search(r"\b(19|20)\d{2}\b.*ferrari", ln, re.I)),
+            rec["title"] = next((ln for ln in lines if re.search(r"\b20\d\d\b.*(ferrari|488|296|f8)", ln, re.I)),
                                 lines[0])
         if not rec["year"]:
             m = re.search(r"\b(20[0-2]\d)\b", rec["title"])
             rec["year"] = m.group(1) if m else ""
-        if not rec["price"]:
-            m = re.search(r"\$\s?([\d,]{5,})", text)
+        if not rec["price"] and "request" not in text.lower():
+            m = re.search(r"\$\s?([\d,]{6,})", text)
             rec["price"] = m.group(1) if m else ""
         if not rec["mileage"]:
             m = re.search(r"([\d,]+)\s*(mi\.?|miles)\b", text, re.I)
@@ -198,29 +279,46 @@ async def extract_cards(page, key, source, base):
         if not rec["location"]:
             m = re.search(r"([A-Z][A-Za-z .'\-]+,\s*[A-Z]{2})\b", text)
             rec["location"] = m.group(1) if m else ""
-        m = re.search(r"Ext(?:erior)?\.?\s*colou?r:?\s*([^\n]+)", text, re.I)
-        if m and not rec["exterior_color"]:
-            rec["exterior_color"] = m.group(1)
-        m = re.search(r"Int(?:erior)?\.?\s*colou?r:?\s*([^\n]+)", text, re.I)
-        if m and not rec["interior_color"]:
-            rec["interior_color"] = m.group(1)
-        rec["url"] = rec["url"] or href or ""
+        for field, pat in (("exterior_color", r"Exterior colou?r:*\s*([^\n]+)"),
+                           ("interior_color", r"Interior colou?r:*\s*([^\n]+)")):
+            if not rec[field]:
+                m = re.search(pat, text, re.I)
+                if m:
+                    rec[field] = m.group(1)
+        rec["url"] = rec["url"] or href
+        rec["photos"] = dedupe(rec["photos"] + await card_photos(c, base))
+        out.append(rec)
+    return out
+
+
+async def extract_ferrari_page_text(page, source, base):
+    """Fallback for Ferrari Approved when card selectors miss: parse page text."""
+    try:
+        text = re.sub(r"\s+", " ", await page.inner_text("body"))
+    except Exception:
+        return []
+    out = []
+    for m in FERRARI_RE.finditer(text):
+        rec = blank(source)
+        parse_ferrari_text(m.group(0), rec)
+        rec["search_url"] = page.url  # no per-car link found; link to the search page
         out.append(rec)
     return out
 
 
 async def enrich_from_detail(page, rec):
-    """Open a listing's detail page and fill in colors / city / VIN."""
+    """Open a listing's detail page and fill in colors, city, VIN and photos."""
     await page.goto(rec["url"], wait_until="domcontentloaded", timeout=45000)
     await page.wait_for_timeout(2500)
-    for d in await extract_jsonld(page, rec["source"], ""):
+    for d in await extract_jsonld(page, rec["source"], rec["url"]):
         for k in ("exterior_color", "interior_color", "city", "state", "vin", "dealer"):
             if not rec.get(k) and d.get(k):
                 rec[k] = d[k]
+        rec["photos"] = dedupe(rec.get("photos", []) + d.get("photos", []))
     text = await page.inner_text("body")
     pats = {
-        "exterior_color": r"Exterior\s*colou?r\s*[:\n]\s*([^\n]+)",
-        "interior_color": r"Interior\s*colou?r\s*[:\n]\s*([^\n]+)",
+        "exterior_color": r"Exterior\s*colou?r\s*[:\n]*\s*([^\n]+)",
+        "interior_color": r"Interior\s*colou?r\s*[:\n]*\s*([^\n]+)",
         "vin": r"\bVIN\s*[:#\n]?\s*([A-HJ-NPR-Z0-9]{17})\b",
     }
     for k, p in pats.items():
@@ -232,6 +330,19 @@ async def enrich_from_detail(page, rec):
         m = re.search(r"\b([A-Z][A-Za-z .'\-]{2,}),\s*([A-Z]{2})\s+\d{5}\b", text)
         if m:
             rec["city"], rec["state"] = m.group(1), m.group(2)
+    if len(rec.get("photos", [])) < 3:
+        try:
+            og = await page.eval_on_selector_all(
+                "meta[property='og:image'], meta[name='twitter:image']",
+                "els => els.map(e => e.content)")
+            big = await page.eval_on_selector_all(
+                "img",
+                "els => els.filter(e => (e.naturalWidth||e.width) >= 400)"
+                ".map(e => e.currentSrc || e.src)")
+            rec["photos"] = dedupe(rec.get("photos", []) + _photo_urls(og + big, rec["url"]))
+        except Exception:
+            pass
+    rec["photos"] = rec.get("photos", [])[:config.MAX_PHOTOS]
 
 
 # ---------------------------------------------------------------------------
@@ -247,15 +358,54 @@ def carscom_urls():
             for p in range(1, config.MAX_PAGES_PER_SEARCH + 1)]
 
 
+def cargurus_url(entity):
+    return ("https://www.cargurus.com/Cars/inventorylisting/"
+            "viewDetailsFilterViewInventoryListing.action?" +
+            urlencode({"zip": config.HOME_ZIP, "distance": 50000,
+                       "entitySelectingHelper.selectedEntity": entity,
+                       "sortDir": "ASC", "sortType": "PRICE"}))
+
+
+def cargurus_urls():
+    urls = [cargurus_url(e) for e in config.CARGURUS_MODEL_IDS.values() if e]
+    return urls + list(config.CARGURUS_EXTRA_URLS)
+
+
+def ferrari_urls():
+    return [f"https://preowned.ferrari.com/en-US/r/north-america/used-ferrari/usa/{s}/rfcm"
+            for s in config.FERRARI_MODEL_SLUGS] + list(config.FERRARI_EXTRA_URLS)
+
+
 SITES = {
-    "ferrari":  ("Ferrari Approved", "https://preowned.ferrari.com", lambda: config.FERRARI_SEARCH_URLS),
+    "ferrari":  ("Ferrari Approved", "https://preowned.ferrari.com", ferrari_urls),
     "carscom":  ("Cars.com", "https://www.cars.com", carscom_urls),
-    "cargurus": ("CarGurus", "https://www.cargurus.com", lambda: config.CARGURUS_SEARCH_URLS),
+    "cargurus": ("CarGurus", "https://www.cargurus.com", cargurus_urls),
 }
 
 
 async def pause(rng):
     await asyncio.sleep(random.uniform(*rng))
+
+
+async def discover_cargurus(page, log):
+    """Find CarGurus model IDs left as None in config (e.g. 296 GTS)."""
+    found = []
+    missing = [name for name, e in config.CARGURUS_MODEL_IDS.items() if not e]
+    if not missing:
+        return found
+    try:
+        hrefs = await page.eval_on_selector_all("a[href]", "els => els.map(e => e.href)")
+    except Exception:
+        return found
+    for name in missing:
+        for h in hrefs:
+            m = re.search(rf"-Ferrari-{re.escape(name)}-(?:[A-Za-z\-]+-)?(d\d+)", h, re.I)
+            if m:
+                config.CARGURUS_MODEL_IDS[name] = m.group(1)
+                log(f"  discovered CarGurus ID for {name}: {m.group(1)}")
+                found.append(cargurus_url(m.group(1)))
+                break
+    return found
 
 
 async def scrape_site(browser, key, log):
@@ -279,9 +429,11 @@ async def scrape_site(browser, key, log):
 
     page.on("response", on_response)
     records = []
+    queue = list(url_fn())
 
-    for url in url_fn():
-        log(f"[{source}] {url[:120]}")
+    while queue:
+        url = queue.pop(0)
+        log(f"[{source}] {url[:130]}")
         before = len(records) + len(api_hits)
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=60000)
@@ -292,7 +444,12 @@ async def scrape_site(browser, key, log):
                     await page.mouse.wheel(0, 2500)
                     await page.wait_for_timeout(600)
                 records += await extract_jsonld(page, source, base)
-                records += await extract_cards(page, key, source, base)
+                cards = await extract_cards(page, key, source, base)
+                if key == "ferrari" and not cards:
+                    cards = await extract_ferrari_page_text(page, source, base)
+                records += cards
+                if key == "cargurus":
+                    queue += await discover_cargurus(page, log)
                 pages_done += 1
                 nxt = NEXT_SELECTORS[key]
                 if not nxt or pages_done >= config.MAX_PAGES_PER_SEARCH:
@@ -304,9 +461,10 @@ async def scrape_site(browser, key, log):
                 await pause(config.PAGE_DELAY_SECONDS)
         except Exception as e:
             log(f"  ! {e.__class__.__name__}: {str(e)[:150]}")
+        added = len(records) + len(api_hits) - before
+        log(f"  +{added} records")
         await pause(config.PAGE_DELAY_SECONDS)
-        # Cars.com: stop paging once a page adds nothing new
-        if key == "carscom" and len(records) + len(api_hits) == before:
+        if key == "carscom" and added == 0:  # past the last results page
             break
 
     records = [from_dict(d, source, base) for d in api_hits] + records
@@ -318,8 +476,7 @@ async def scrape_site(browser, key, log):
 async def enrich(browser, records, log):
     ctx = await browser.new_context(user_agent=UA, locale="en-US")
     page = await ctx.new_page()
-    n = 0
-    for rec in records:
+    for n, rec in enumerate(records):
         if n >= config.MAX_DETAIL_PAGES_PER_RUN:
             log("  detail-page cap reached; the rest are filled on later runs")
             break
@@ -327,7 +484,6 @@ async def enrich(browser, records, log):
             await enrich_from_detail(page, rec)
         except Exception as e:
             log(f"  ! detail {rec['url'][:80]}: {str(e)[:100]}")
-        n += 1
         await pause(config.DETAIL_DELAY_SECONDS)
     await ctx.close()
 
@@ -345,7 +501,7 @@ async def run_scrape(sites, log, needs_detail):
                 log(f"[{key}] failed: {e}")
         todo = needs_detail(allrecs)
         if todo:
-            log(f"Visiting {min(len(todo), config.MAX_DETAIL_PAGES_PER_RUN)} detail pages")
+            log(f"Visiting up to {min(len(todo), config.MAX_DETAIL_PAGES_PER_RUN)} detail pages")
             await enrich(browser, todo, log)
         await browser.close()
     return allrecs

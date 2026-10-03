@@ -11,7 +11,7 @@ from . import config
 
 
 def _ident(r):
-    return r["vin"] or r["url"].split("?")[0] or f'{r["title"]}|{r["mileage"]}|{r["city"]}'
+    return r.get("car_id") or r["vin"] or r["url"].split("?")[0] or f'{r["title"]}|{r["mileage"]}|{r["city"]}'
 
 
 def _load(path):
@@ -103,8 +103,31 @@ def _city_rank(rows, snapshots, min_cars):
     return out
 
 
-def build(history_path, out_path):
+def _city(r):
+    return f'{r["city"]}, {r["state"]}'.strip(", ")
+
+
+def _segments(car_rows, snap_idx):
+    """Compress a car's history into [first_snapshot, last_snapshot, price] runs."""
+    segs = []
+    for r in sorted(car_rows, key=lambda r: snap_idx[r["snapshot"]]):
+        i = snap_idx[r["snapshot"]]
+        if segs and segs[-1][1] == i - 1 and segs[-1][2] == r["price"]:
+            segs[-1][1] = i
+        elif not (segs and segs[-1][1] == i):
+            segs.append([i, i, r["price"]])
+    return segs
+
+
+def build(history_path, out_path, cache_path=None):
     rows = _load(history_path)
+    cache = {}
+    if cache_path and os.path.exists(cache_path):
+        try:
+            with open(cache_path) as f:
+                cache = json.load(f)
+        except Exception:
+            cache = {}
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     if not rows:
         with open(out_path, "w") as f:
@@ -116,6 +139,7 @@ def build(history_path, out_path):
     for r in rows:
         snap_time.setdefault(r["snapshot"], r["t"])
     snapshots = sorted(snap_time, key=snap_time.get)
+    snap_idx = {sn: i for i, sn in enumerate(snapshots)}
     latest_snap = snapshots[-1]
     first_seen, first_price = {}, {}
     for r in sorted(rows, key=lambda r: r["t"]):
@@ -154,19 +178,18 @@ def build(history_path, out_path):
             year_summary.append({"year": y, "listed": len(ps), "low": s.get("low"),
                                  "avg": s.get("avg"), "high": s.get("high")})
 
-        # trends per snapshot (all years, and each year)
-        trend = defaultdict(list)
-        per = defaultdict(lambda: defaultdict(list))
+        # compact per-car history; the page computes trends for any year/city
+        by_car = defaultdict(list)
         for r in g_rows:
-            per[r["snapshot"]]["All"].append(r)
-            if r["year"]:
-                per[r["snapshot"]][str(r["year"])].append(r)
-        for s in snapshots:
-            for yk, rs in per[s].items():
-                st = _stats([r["price"] for r in rs]) or {}
-                trend[yk].append({"s": s, "d": snap_time[s].strftime("%b %-d %p").replace("AM", "am").replace("PM", "pm"),
-                                  "count": len(rs), "med": st.get("med"),
-                                  "low": st.get("low"), "avg": st.get("avg")})
+            by_car[r["id"]].append(r)
+        cars = []
+        for cid, crs in by_car.items():
+            last = max(crs, key=lambda r: r["t"])
+            cars.append([last["year"], _city(last), _segments(crs, snap_idx)])
+        city_counts = defaultdict(int)
+        for r in cur:
+            if r["city"]:
+                city_counts[_city(r)] += 1
 
         cur_stats = _stats([r["price"] for r in cur]) or {}
         week_ago = snap_time[latest_snap] - timedelta(days=7)
@@ -183,6 +206,10 @@ def build(history_path, out_path):
         listings = []
         for r in sorted(cur, key=lambda r: (r["price"] or 9e9)):
             fp = first_price.get(r["id"])
+            info = cache.get(r["id"], {})
+            links = [{"s": src, "u": u} for src, u in (info.get("links") or {}).items() if u]
+            if not links and r["url"]:
+                links = [{"s": r["sources"].split("|")[0], "u": r["url"]}]
             listings.append({
                 "year": r["year"], "price": r["price"], "miles": r["mileage"],
                 "ext": r["exterior_color"], "int": r["interior_color"],
@@ -190,6 +217,8 @@ def build(history_path, out_path):
                 "url": r["url"], "src": r["sources"],
                 "days": (r["t"] - first_seen[r["id"]]).days,
                 "drop": (r["price"] - fp) if (fp and r["price"] and r["price"] != fp) else 0,
+                "photos": (info.get("photos") or [])[:6],
+                "links": links,
             })
 
         by_model[g] = {
@@ -198,7 +227,8 @@ def build(history_path, out_path):
                         "high": cur_stats.get("high"), "change_7d": change},
             "years": year_summary,
             "price_table": price_table,
-            "trend": trend,
+            "cars": cars,
+            "cities_now": sorted(city_counts.items(), key=lambda kv: (-kv[1], kv[0])),
             "cities": _city_rank([r for r in window_rows if r["model_group"] == g], window_snaps, 2),
             "listings": listings,
         }
@@ -208,6 +238,8 @@ def build(history_path, out_path):
         "latest_snapshot": latest_snap,
         "latest_time": snap_time[latest_snap].isoformat(timespec="minutes"),
         "snapshot_count": len(snapshots),
+        "snaps": [snap_time[sn].strftime("%b %-d %p").replace("AM", "am").replace("PM", "pm")
+                  for sn in snapshots],
         "first_time": snap_time[snapshots[0]].isoformat(timespec="minutes"),
         "city_window_days": config.CITY_WINDOW_DAYS,
         "models": config.MODEL_GROUPS,

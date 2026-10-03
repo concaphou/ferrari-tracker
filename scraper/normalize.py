@@ -18,7 +18,7 @@ def classify_model(*texts):
     if not t or _EXCLUDE_RE.search(t):
         return None
     t = t.replace("-", " ")
-    open_top = bool(re.search(r"\b(gts|spider|spyder)\b", t))
+    open_top = bool(re.search(r"\b(gts|spider|spyder|convertible|cabriolet)\b", t))
 
     if re.search(r"\b488\b", t):
         if open_top:

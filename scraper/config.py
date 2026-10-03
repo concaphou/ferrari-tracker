@@ -56,17 +56,23 @@ CARSCOM_MODEL_SLUGS = [
     "ferrari-f8_tributo", "ferrari-f8_spider",
 ]
 
-# CarGurus uses internal model IDs in its URLs, so paste one search URL per
-# model here (see README step 2). Leave the list empty to skip CarGurus.
-CARGURUS_SEARCH_URLS = [
-    # "https://www.cargurus.com/Cars/inventorylisting/viewDetailsFilterViewInventoryListing.action?...",
-]
+# CarGurus: nationwide search per model, using CarGurus's model IDs.
+# The 488 and F8 IDs cover both coupe and Spider; each car is sorted locally.
+# A None ID is discovered automatically from links on the other model pages.
+CARGURUS_MODEL_IDS = {
+    "488": "d2333",
+    "296-GTB": "d3240",
+    "296-GTS": None,
+    "F8": "d3048",
+}
+CARGURUS_EXTRA_URLS = []  # paste any extra CarGurus search URLs here
 
-# Ferrari Approved pre-owned search. Paste a filtered search URL if you like;
-# the default loads all US pre-owned inventory and filters locally.
-FERRARI_SEARCH_URLS = [
-    "https://preowned.ferrari.com/en-US/search",
-]
+# Ferrari Approved (preowned.ferrari.com): one US-wide page per model.
+FERRARI_MODEL_SLUGS = ["488-gtb", "488-spider", "296-gtb", "296-gts",
+                       "f8-tributo", "f8-spider"]
+FERRARI_EXTRA_URLS = []
+
+MAX_PHOTOS = 6  # photos kept per car
 
 # ---------------------------------------------------------------------------
 # Politeness / limits
