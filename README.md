@@ -11,12 +11,14 @@ Dino, Imola, Magma, Ferrari leather…), Bordeaux, burgundy, maroon, crimson and
 Edit `RED_WORDS` in `scraper/config.py` to change the list.
 
 **Captured per car:** model, year, price, mileage, exterior + interior color, dealer city/state,
-dealer, VIN, link, and which site(s) listed it.
+dealer, VIN, up to 6 photos, and a link to the listing on each site that carries it.
 
 **Dashboard shows, per model:** median/lowest price and listing count with changes; a trend chart
-of median price and availability (filterable by year); low/avg/high price by year and exterior
+of median price and availability (filterable by year and by any city with a current listing,
+with the all-cities median shown for comparison); low/avg/high price by year and exterior
 color; cities ranked by how far below market they price (mileage-adjusted, and how consistently);
-and every current listing with days listed and price changes.
+and every current listing with swipeable photos, days listed, price changes, and buttons to open
+it on Cars.com, CarGurus or Ferrari Approved.
 
 ---
 
@@ -35,10 +37,9 @@ and every current listing with days listed and price changes.
 5. **Turn on the website:** **Settings → Pages → Build and deployment → Source: Deploy from a branch →
    Branch: `main`, folder: `/docs` → Save.** Your URL will be
    `https://YOUR-USERNAME.github.io/ferrari-tracker/`.
-6. **(Recommended) Add CarGurus searches.** CarGurus URLs use internal model IDs, so:
-   on cargurus.com search a used Ferrari 488 GTB, set distance to **Nationwide**, copy the address
-   bar URL. Repeat for each model. Then in GitHub open `scraper/config.py`, click the pencil icon,
-   paste the URLs into `CARGURUS_SEARCH_URLS` (each in quotes, followed by a comma), and commit.
+6. **Search pages are built in.** Ferrari Approved, Cars.com and CarGurus are searched
+   nationwide for all six models; nothing to fill in. (CarGurus's 296 GTS page is found
+   automatically from links on its 296 GTB page.)
 7. **Run it once now:** **Actions** tab → enable workflows if asked → **Scrape Ferrari listings →
    Run workflow → Run workflow.** It takes 20–40 minutes. A green check means success.
 8. **On your iPhone:** open your URL in Safari, tap **Share → Add to Home Screen**.
@@ -53,8 +54,10 @@ Open the latest run in the **Actions** tab and read the log; each site prints ho
 - **Cars.com or CarGurus finds 0 records:** these sites sometimes block cloud servers. Use Plan B below.
 - **Cars.com finds cars but not your models:** the model slugs in `CARSCOM_MODEL_SLUGS` may be off.
   Search on cars.com, filter to the model, and copy the `models[]=` value from the URL.
-- **Ferrari Approved finds 0:** do a filtered search on the site and paste that URL into
-  `FERRARI_SEARCH_URLS`.
+- **Ferrari Approved finds 0:** check that the model pages in `FERRARI_MODEL_SLUGS` open in a
+  browser (for example preowned.ferrari.com/en-US/r/north-america/used-ferrari/usa/296-gts/rfcm).
+- **Photos don't show:** some sites block their images from being shown elsewhere. The
+  "View on …" buttons still open the full listing with every photo.
 - **Colors or city show "Unknown":** these are filled from detail pages, up to 120 per run, and
   cached, so gaps close over the first few runs.
 
@@ -92,6 +95,7 @@ The Mac must be awake at those times. Then disable the GitHub schedule
 | `scraper/analyze.py` | Builds `docs/data.json` for the dashboard |
 | `run.py` | Runs one snapshot; `--force` to run now, `--analyze-only` to rebuild the page |
 | `data/history.csv` | Every snapshot ever taken (open it in Excel anytime) |
+| `data/vehicle_cache.json` | Saved colors, photos and links per car, so detail pages are only visited once |
 | `docs/index.html` | The dashboard |
 
 Please respect each site's Terms of Service; keep the schedule and page limits modest.
