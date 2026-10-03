@@ -18,7 +18,7 @@ def _load(path):
     if not os.path.exists(path):
         return []
     rows = []
-    with open(path, newline="") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             r["price"] = int(r["price"]) if r["price"] else None
             r["mileage"] = int(r["mileage"]) if r["mileage"] else None
@@ -101,6 +101,11 @@ def _city_rank(rows, snapshots, min_cars):
         })
     out.sort(key=lambda x: (x["vs_market"], -x["cars"]))
     return out
+
+
+def _label(t):
+    # e.g. "Oct 3 am" (built by hand because %-d doesn't work on Windows)
+    return f"{t:%b} {t.day} {'am' if t.hour < 12 else 'pm'}"
 
 
 def _city(r):
@@ -238,8 +243,7 @@ def build(history_path, out_path, cache_path=None):
         "latest_snapshot": latest_snap,
         "latest_time": snap_time[latest_snap].isoformat(timespec="minutes"),
         "snapshot_count": len(snapshots),
-        "snaps": [snap_time[sn].strftime("%b %-d %p").replace("AM", "am").replace("PM", "pm")
-                  for sn in snapshots],
+        "snaps": [_label(snap_time[sn]) for sn in snapshots],
         "first_time": snap_time[snapshots[0]].isoformat(timespec="minutes"),
         "city_window_days": config.CITY_WINDOW_DAYS,
         "models": config.MODEL_GROUPS,

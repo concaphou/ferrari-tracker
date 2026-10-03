@@ -409,11 +409,12 @@ async def diagnose(page, resp, key, n, log):
     blocked = bool(BLOCK_WORDS.search(title + " " + body[:2000])) or status in (401, 403, 429)
     log(f"  status {status} | title: {title!r} | {'LOOKS BLOCKED' if blocked else 'page loaded'}")
     log(f"  page text starts: {body[:160]!r}")
-    try:
-        os.makedirs(DEBUG_DIR, exist_ok=True)
-        await page.screenshot(path=os.path.join(DEBUG_DIR, f"{key}-{n}.jpg"), type="jpeg", quality=45)
-    except Exception:
-        pass
+    if blocked:  # keep a picture of the block page for troubleshooting
+        try:
+            os.makedirs(DEBUG_DIR, exist_ok=True)
+            await page.screenshot(path=os.path.join(DEBUG_DIR, f"{key}-{n}.jpg"), type="jpeg", quality=45)
+        except Exception:
+            pass
 
 
 async def pause(rng):
@@ -530,8 +531,10 @@ async def enrich(browser, records, log):
 async def run_scrape(sites, log, needs_detail):
     """needs_detail(records) -> list of records to enrich (lets caller use a cache)."""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True,
-                                          args=["--disable-blink-features=AutomationControlled"])
+        headful = os.environ.get("TRACKER_HEADFUL") == "1"  # visible window on a home PC
+        browser = await p.chromium.launch(headless=not headful,
+                                          args=["--disable-blink-features=AutomationControlled"]
+                                          + (["--start-minimized"] if headful else []))
         allrecs = []
         for key in sites:
             try:

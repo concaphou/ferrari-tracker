@@ -43,13 +43,13 @@ def current_slot(force):
 def existing_snapshots():
     if not os.path.exists(HISTORY):
         return set()
-    with open(HISTORY, newline="") as f:
+    with open(HISTORY, newline="", encoding="utf-8") as f:
         return {r["snapshot"] for r in csv.DictReader(f)}
 
 
 def load_cache():
     try:
-        with open(CACHE) as f:
+        with open(CACHE, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}
@@ -175,16 +175,16 @@ def finalize(records, cache, snapshot, now):
 def append_history(rows):
     os.makedirs(os.path.dirname(HISTORY), exist_ok=True)
     if os.path.exists(HISTORY):
-        with open(HISTORY, newline="") as f:
+        with open(HISTORY, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             if reader.fieldnames != FIELDS:  # older file: upgrade columns in place
                 old = list(reader)
-                with open(HISTORY, "w", newline="") as g:
+                with open(HISTORY, "w", newline="", encoding="utf-8") as g:
                     w = csv.DictWriter(g, fieldnames=FIELDS, extrasaction="ignore")
                     w.writeheader()
                     w.writerows(old)
     new_file = not os.path.exists(HISTORY)
-    with open(HISTORY, "a", newline="") as f:
+    with open(HISTORY, "a", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)
         if new_file:
             w.writeheader()
@@ -217,7 +217,7 @@ def main():
     records = asyncio.run(run_scrape(args.sites, log, needs_detail_factory(cache)))
     rows = finalize(records, cache, snapshot, now)
 
-    with open(CACHE, "w") as f:
+    with open(CACHE, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=0)
     if rows:
         append_history(rows)

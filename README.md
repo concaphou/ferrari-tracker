@@ -61,7 +61,29 @@ Open the latest run in the **Actions** tab and read the log; each site prints ho
 - **Colors or city show "Unknown":** these are filled from detail pages, up to 120 per run, and
   cached, so gaps close over the first few runs.
 
-## Plan B: run from your Mac
+## Running on a Windows PC (recommended)
+
+Ferrari Approved, Cars.com and CarGurus all block GitHub's servers (403 errors), so the
+scraper runs on your PC and sends results to GitHub. The website stays on GitHub.
+
+1. Install **Git** from git-scm.com (accept all the defaults).
+2. Install **Python** from python.org. On the first installer screen, tick
+   **Add python.exe to PATH**.
+3. Open **PowerShell** and run (with your GitHub username):
+   ```
+   cd $HOME\Documents
+   git clone https://github.com/YOUR-USERNAME/ferrari-tracker.git
+   ```
+4. Copy everything from the unzipped download into `Documents\ferrari-tracker`,
+   choosing **Replace the files in the destination**.
+5. Double-click `setup_windows.bat` in that folder. It installs everything, saves the code to
+   GitHub, schedules 11am and 5pm runs, and does a first run.
+6. On GitHub: **Actions → Scrape Ferrari listings → ⋯ → Disable workflow**.
+
+The PC must be on and signed in (it can be locked) at 11am and 5pm. A minimized browser
+window opens during each run. The log is `tracker.log` in the same folder.
+
+## Plan B: run from a Mac
 
 Home internet is blocked far less often than cloud servers. The website stays on GitHub.
 
