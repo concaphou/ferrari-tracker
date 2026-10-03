@@ -79,12 +79,26 @@ tr.year td span{font:500 .85rem var(--body);color:var(--muted);margin-left:8px}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 
 .cars{list-style:none;margin:0;padding:0}
-.cars li{border-bottom:1px solid var(--line)}
-.cars a{display:grid;grid-template-columns:1fr auto;gap:0 12px;padding:11px 0;text-decoration:none}
-.cars .p{font:700 1.2rem var(--cond);text-align:right}
+.cars>li{border-bottom:1px solid var(--line);padding:14px 0}
+.photos{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 0 10px;scrollbar-width:none;border-radius:6px}
+.photos::-webkit-scrollbar{display:none}
+.photos a{flex:0 0 82%;max-width:340px;aspect-ratio:4/3;scroll-snap-align:start;background:var(--surface);border-radius:6px;overflow:hidden;display:block}
+.photos img{width:100%;height:100%;object-fit:cover;display:block}
+.photos .none{flex:1;aspect-ratio:auto;padding:14px;color:var(--muted);font-size:.85rem;border:1px dashed var(--line);max-width:none}
+.info{display:grid;grid-template-columns:1fr auto;gap:0 12px}
+.cars .p{font:700 1.25rem var(--cond);text-align:right}
 .cars .t{font-weight:600}
-.cars .d{color:var(--muted);font-size:.84rem;grid-column:1/-1}
+.cars .d{color:var(--muted);font-size:.84rem}
 .cars .drop{color:var(--good);font-size:.84rem;text-align:right}
+.cars .bad{color:var(--bad)}
+.go{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.go a{text-decoration:none;font:600 .9rem var(--body);padding:8px 12px;border-radius:6px;background:var(--ink);color:var(--bg)}
+.go a:first-child{background:var(--giallo);color:var(--giallo-ink)}
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.82rem;margin-top:8px}
+.legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px;background:var(--giallo)}
+.legend i.nat{background:none;border-top:2px dashed var(--muted);height:0}
+.legend i.bar{height:10px;width:10px;background:var(--blu);opacity:.4}
 .empty{padding:24px;text-align:center;color:var(--muted)}
 button.more{margin-top:10px;width:100%;padding:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;font:500 .95rem var(--body)}
 @media (max-width:420px){.summary{grid-template-columns:1fr 1fr}.summary div:first-child{grid-column:1/-1}}
@@ -162,12 +176,19 @@ function render() {
       <div class="panel">
         <div class="chart-head">
           <h2 style="margin:0">Price and availability</h2>
-          <select id="yearSel" aria-label="Model year">
-            ${Object.keys(M.trend).sort((a,b)=> a==="All"?-1:b==="All"?1:b-a).map(y => `<option value="${y}">${y === "All" ? "All years" : y}</option>`).join("")}
-          </select>
+          <div class="filters">
+            <select id="yearSel" aria-label="Model year">
+              <option value="All">All years</option>
+              ${[...new Set(M.cars.map(c => c[0]).filter(Boolean))].sort((a,b) => b-a).map(y => `<option value="${y}">${y}</option>`).join("")}
+            </select>
+            <select id="citySel" aria-label="City">
+              <option value="All">All cities</option>
+              ${M.cities_now.map(([c, n]) => `<option value="${esc(c)}">${esc(c)} (${n})</option>`).join("")}
+            </select>
+          </div>
         </div>
         <div class="chart-box"><canvas id="trend"></canvas></div>
-        <p class="note">Line: median asking price. Bars: cars listed at each snapshot.</p>
+        <div class="legend" id="legend"></div>
       </div>
     </section>
 
@@ -192,13 +213,15 @@ function render() {
       <ul class="cars" id="cars"></ul>
     </section>`;
 
-  $("#yearSel").onchange = e => drawChart(M.trend[e.target.value]);
+  const redraw = () => drawChart(M, $("#yearSel").value, $("#citySel").value);
+  $("#yearSel").onchange = redraw;
+  $("#citySel").onchange = redraw;
   document.querySelectorAll(".seg button").forEach(b => b.onclick = () => {
     cityScope = b.dataset.s;
     document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
     renderCities();
   });
-  drawChart(M.trend.All || []);
+  redraw();
   renderCities();
   renderCars();
 }
@@ -232,37 +255,70 @@ function renderCities() {
 function renderCars() {
   const L = DATA.by_model[current].listings, el = $("#cars");
   if (!L.length) { el.innerHTML = `<li class="empty">No cars listed right now.</li>`; return; }
-  el.innerHTML = L.slice(0, listLimit).map(c => `<li><a href="${esc(c.url)}" target="_blank" rel="noopener">
-      <span class="t">${c.year ?? ""} · ${esc(c.ext)} / ${esc(c.int)}</span>
-      <span class="p">${money(c.price)}</span>
-      <span class="d" style="grid-column:1">${c.miles != null ? c.miles.toLocaleString() + " mi · " : ""}${esc(c.city)} · ${esc(c.dealer)}</span>
-      <span class="drop">${c.drop < 0 ? "↓ " + kmoney(-c.drop) : c.drop > 0 ? "↑ " + kmoney(c.drop) : ""}</span>
-      <span class="d">${c.days ? `Listed ${c.days} days` : "New"} · ${esc(c.src.replace(/\|/g, ", "))}</span>
-    </a></li>`).join("");
+  el.innerHTML = L.slice(0, listLimit).map(c => {
+    const main = c.links[0] ? c.links[0].u : "";
+    const photos = (c.photos || []).length
+      ? c.photos.map((u, k) => `<a href="${esc(main)}" target="_blank" rel="noopener" aria-label="Photo ${k + 1} of ${c.photos.length}"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer"></a>`).join("")
+      : `<a class="none" href="${esc(main)}" target="_blank" rel="noopener">No photos captured yet. They're added as the scraper visits each listing.</a>`;
+    const links = c.links.map(l => `<a href="${esc(l.u)}" target="_blank" rel="noopener">View on ${esc(l.s)}</a>`).join("");
+    return `<li>
+      <div class="photos">${photos}</div>
+      <div class="info">
+        <span class="t">${c.year ?? ""} · ${esc(c.ext)} / ${esc(c.int)}</span>
+        <span class="p">${money(c.price)}</span>
+        <span class="d">${c.miles != null ? c.miles.toLocaleString() + " mi · " : ""}${esc(c.city)} · ${esc(c.dealer)}</span>
+        <span class="drop ${c.drop > 0 ? "bad" : ""}">${c.drop < 0 ? "Down " + kmoney(-c.drop) : c.drop > 0 ? "Up " + kmoney(c.drop) : ""}</span>
+        <span class="d">${c.days ? `Listed ${c.days} days` : "New this week"}${c.photos && c.photos.length > 1 ? ` · ${c.photos.length} photos, swipe to see more` : ""}</span>
+      </div>
+      ${links ? `<div class="go">${links}</div>` : ""}
+    </li>`;
+  }).join("");
+  el.querySelectorAll(".photos img").forEach(img => img.addEventListener("error", () => {
+    const strip = img.closest(".photos"); img.parentElement.remove();
+    if (strip && !strip.children.length) strip.remove();
+  }));
   if (L.length > listLimit) {
     el.insertAdjacentHTML("afterend", `<button class="more" id="more">Show all ${L.length}</button>`);
     $("#more").onclick = e => { listLimit = 1e9; e.target.remove(); renderCars(); };
   }
 }
 
-function drawChart(series) {
+function median(a) {
+  if (!a.length) return null;
+  const s = [...a].sort((x, y) => x - y), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+function series(M, year, city) {
+  const n = DATA.snaps.length, count = new Array(n).fill(0), prices = Array.from({length: n}, () => []);
+  for (const [y, c, segs] of M.cars) {
+    if (year !== "All" && String(y) !== year) continue;
+    if (city !== "All" && c !== city) continue;
+    for (const [a, b, p] of segs) for (let i = a; i <= b; i++) { count[i]++; if (p) prices[i].push(p); }
+  }
+  return {count, med: prices.map(median)};
+}
+
+function drawChart(M, year, city) {
   if (chart) chart.destroy();
   const box = $("#trend");
   if (typeof Chart === "undefined") { box.parentElement.innerHTML = `<p class="empty">Chart library didn't load. Check your connection.</p>`; return; }
-  const css = getComputedStyle(document.documentElement);
-  const ink = css.getPropertyValue("--muted").trim(), line = css.getPropertyValue("--line").trim();
+  const css = getComputedStyle(document.documentElement), v = k => css.getPropertyValue(k).trim();
+  const ink = v("--muted"), line = v("--line");
+  const sel = series(M, year, city), nat = city === "All" ? null : series(M, year, "All");
+  const where = city === "All" ? "All cities" : city;
+  const sets = [
+    {type: "line", label: where + " median", data: sel.med, yAxisID: "y", borderColor: v("--giallo"), backgroundColor: v("--giallo"), borderWidth: 3, pointRadius: city === "All" ? 0 : 2, tension: .25, spanGaps: true, order: 1},
+    {type: "bar", label: "Listed", data: sel.count, yAxisID: "y2", backgroundColor: v("--blu") + "55", borderRadius: 2, order: 3}
+  ];
+  if (nat) sets.splice(1, 0, {type: "line", label: "All cities median", data: nat.med, yAxisID: "y", borderColor: ink, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, tension: .25, spanGaps: true, order: 2});
+  $("#legend").innerHTML = `<span><i></i>${esc(where)} median price</span>${nat ? `<span><i class="nat"></i>All cities median</span>` : ""}<span><i class="bar"></i>Cars listed${city === "All" ? "" : " in " + esc(city)}</span>`;
   chart = new Chart(box, {
-    data: {
-      labels: series.map(p => p.d),
-      datasets: [
-        {type: "line", label: "Median price", data: series.map(p => p.med), yAxisID: "y", borderColor: css.getPropertyValue("--giallo").trim(), backgroundColor: css.getPropertyValue("--giallo").trim(), borderWidth: 3, pointRadius: 0, tension: .25, spanGaps: true, order: 1},
-        {type: "bar", label: "Listed", data: series.map(p => p.count), yAxisID: "y2", backgroundColor: css.getPropertyValue("--blu").trim() + "55", borderRadius: 2, order: 2}
-      ]
-    },
+    data: {labels: DATA.snaps, datasets: sets},
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: {mode: "index", intersect: false},
-      plugins: {legend: {display: false}, tooltip: {callbacks: {label: c => c.dataset.yAxisID === "y" ? "Median " + money(c.raw) : c.raw + " listed"}}},
+      plugins: {legend: {display: false}, tooltip: {callbacks: {label: c => c.dataset.yAxisID === "y" ? `${c.dataset.label}: ${money(c.raw)}` : `${c.raw} listed`}}},
       scales: {
         x: {ticks: {color: ink, maxTicksLimit: 5, maxRotation: 0}, grid: {display: false}},
         y: {position: "left", ticks: {color: ink, callback: v => kmoney(v), maxTicksLimit: 5}, grid: {color: line}},
