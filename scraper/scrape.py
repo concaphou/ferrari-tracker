@@ -158,13 +158,17 @@ def from_dict(d, source, base):
         "interior_color": str(first(d, *INT) or ""),
         "city": str(first(d, *CITY) or ""),
         "state": str(first(d, *STATE) or ""),
-        "location": str(first(d, "location", "sellerLocation", "dealerLocation") or ""),
+        "location": str(first(d, "location", "sellerLocation", "dealerLocation",
+                              "offers.seller.address") or ""),
         "dealer": str(first(d, "dealerName", "sellerName", "dealer.name",
                             "seller.name", "offers.seller.name",
                             "serviceProviderName") or ""),
         "url": url,
         "photos": photos_from(d, base),
     })
+    if not r["year"]:
+        m = re.search(r"\b(20[0-3]\d)\b", r["title"])
+        r["year"] = m.group(1) if m else ""
     return r
 
 
@@ -199,7 +203,8 @@ CARD_SELECTORS = {
 }
 
 NEXT_SELECTORS = {
-    "carscom": None,  # paginated via URL
+    "carscom": "a[aria-label='Next page'], #next_paginate, button[aria-label='Next page'], "
+               "a[phx-value-page]:has-text('Next')",
     "cargurus": "button[data-testid='srp-desktop-page-navigation-next-page'], "
                 "button[aria-label='Next page'], a[aria-label='Next page']",
     "ferrari": "button:has-text('Load more'), button:has-text('Show more'), "
@@ -351,12 +356,8 @@ async def enrich_from_detail(page, rec):
 # ---------------------------------------------------------------------------
 
 def carscom_urls():
-    base = [("stock_type", "used"), ("makes[]", "ferrari"),
-            ("maximum_distance", "all"), ("zip", config.HOME_ZIP),
-            ("page_size", "100"), ("sort", "list_price")]
-    base += [("models[]", s) for s in config.CARSCOM_MODEL_SLUGS]
-    return ["https://www.cars.com/shopping/results/?" + urlencode(base + [("page", p)])
-            for p in range(1, config.MAX_PAGES_PER_SEARCH + 1)]
+    q = urlencode({"stock_type": "used", "maximum_distance": "all", "zip": config.HOME_ZIP})
+    return [f"https://www.cars.com/shopping/{slug}/?{q}" for slug in config.CARSCOM_MODEL_SLUGS]
 
 
 def cargurus_url(entity):
@@ -409,12 +410,17 @@ async def diagnose(page, resp, key, n, log):
     blocked = bool(BLOCK_WORDS.search(title + " " + body[:2000])) or status in (401, 403, 429)
     log(f"  status {status} | title: {title!r} | {'LOOKS BLOCKED' if blocked else 'page loaded'}")
     log(f"  page text starts: {body[:160]!r}")
+    return blocked
     if blocked:  # keep a picture of the block page for troubleshooting
         try:
             os.makedirs(DEBUG_DIR, exist_ok=True)
             await page.screenshot(path=os.path.join(DEBUG_DIR, f"{key}-{n}.jpg"), type="jpeg", quality=45)
         except Exception:
             pass
+
+
+def delay_for(key):
+    return config.SLOW_DELAY_SECONDS if key in config.SLOW_SITES else config.PAGE_DELAY_SECONDS
 
 
 async def pause(rng):
@@ -442,13 +448,8 @@ async def discover_cargurus(page, log):
     return found
 
 
-async def scrape_site(browser, key, log):
+async def scrape_site(ctx, key, log):
     source, base, url_fn = SITES[key]
-    ctx = await browser.new_context(user_agent=UA, locale="en-US",
-                                    viewport={"width": 1366, "height": 900},
-                                    timezone_id=config.TIMEZONE,
-                                    extra_http_headers={"Accept-Language": "en-US,en;q=0.9"})
-    await ctx.add_init_script(STEALTH_JS)
     page = await ctx.new_page()
     api_hits = []
     shot = 0
@@ -476,7 +477,9 @@ async def scrape_site(browser, key, log):
             resp = await page.goto(url, wait_until="domcontentloaded", timeout=60000)
             await page.wait_for_timeout(6000)
             shot += 1
-            await diagnose(page, resp, key, shot, log)
+            if await diagnose(page, resp, key, shot, log):
+                log(f"  {source} is blocking this browser; skipping the rest of {source} this run")
+                break
             pages_done = 0
             while True:
                 for _ in range(8):
@@ -497,53 +500,84 @@ async def scrape_site(browser, key, log):
                 if not btn or not await btn.is_enabled():
                     break
                 await btn.click()
-                await pause(config.PAGE_DELAY_SECONDS)
+                await pause(delay_for(key))
         except Exception as e:
             log(f"  ! {e.__class__.__name__}: {str(e)[:150]}")
         added = len(records) + len(api_hits) - before
         log(f"  +{added} records")
-        await pause(config.PAGE_DELAY_SECONDS)
-        if key == "carscom" and added == 0:  # past the last results page
-            break
+        await pause(delay_for(key))
 
     records = [from_dict(d, source, base) for d in api_hits] + records
-    await ctx.close()
+    await page.close()
     log(f"[{source}] {len(records)} raw records")
     return records
 
 
-async def enrich(browser, records, log):
-    ctx = await browser.new_context(user_agent=UA, locale="en-US")
-    await ctx.add_init_script(STEALTH_JS)
+async def enrich(ctx, records, log):
     page = await ctx.new_page()
+    blocked_sources = set()
     for n, rec in enumerate(records):
         if n >= config.MAX_DETAIL_PAGES_PER_RUN:
             log("  detail-page cap reached; the rest are filled on later runs")
             break
+        if rec["source"] in blocked_sources:
+            continue
         try:
             await enrich_from_detail(page, rec)
+            title = (await page.title()).lower()
+            if "attention required" in title or "access denied" in title or title.strip() in ("cargurus.com",):
+                blocked_sources.add(rec["source"])
+                log(f"  {rec['source']} blocked detail pages; skipping the rest for this run")
         except Exception as e:
             log(f"  ! detail {rec['url'][:80]}: {str(e)[:100]}")
-        await pause(config.DETAIL_DELAY_SECONDS)
-    await ctx.close()
+        key = next((k for k, v in SITES.items() if v[0] == rec["source"]), "")
+        await pause(config.SLOW_DELAY_SECONDS if key in config.SLOW_SITES else config.DETAIL_DELAY_SECONDS)
+    await page.close()
+
+
+PROFILE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".browser-profile")
+
+
+async def open_browser(p, log):
+    """On a home PC: a real Edge/Chrome window with a saved profile (cookies persist
+    between runs, which sites trust more). In the cloud: plain headless Chromium."""
+    args = ["--disable-blink-features=AutomationControlled"]
+    common = dict(locale="en-US", timezone_id=config.TIMEZONE,
+                  viewport={"width": 1366, "height": 900},
+                  extra_http_headers={"Accept-Language": "en-US,en;q=0.9"})
+    if os.environ.get("TRACKER_HEADFUL") == "1":
+        for channel in ("msedge", "chrome", None):
+            try:
+                ctx = await p.chromium.launch_persistent_context(
+                    PROFILE_DIR, headless=False, channel=channel,
+                    args=args + ["--start-minimized"], **common)
+                log(f"Browser: {channel or 'built-in Chromium'} (saved profile)")
+                await ctx.add_init_script(STEALTH_JS)
+                return ctx, None
+            except Exception as e:
+                log(f"  couldn't start {channel or 'Chromium'}: {str(e)[:80]}")
+    browser = await p.chromium.launch(headless=True, args=args)
+    ctx = await browser.new_context(user_agent=UA, **common)
+    await ctx.add_init_script(STEALTH_JS)
+    log("Browser: headless Chromium")
+    return ctx, browser
 
 
 async def run_scrape(sites, log, needs_detail):
     """needs_detail(records) -> list of records to enrich (lets caller use a cache)."""
     async with async_playwright() as p:
-        headful = os.environ.get("TRACKER_HEADFUL") == "1"  # visible window on a home PC
-        browser = await p.chromium.launch(headless=not headful,
-                                          args=["--disable-blink-features=AutomationControlled"]
-                                          + (["--start-minimized"] if headful else []))
+        ctx, browser = await open_browser(p, log)
         allrecs = []
         for key in sites:
             try:
-                allrecs += await scrape_site(browser, key, log)
+                allrecs += await scrape_site(ctx, key, log)
             except Exception as e:
                 log(f"[{key}] failed: {e}")
         todo = needs_detail(allrecs)
         if todo:
             log(f"Visiting up to {min(len(todo), config.MAX_DETAIL_PAGES_PER_RUN)} detail pages")
-            await enrich(browser, todo, log)
-        await browser.close()
+            await enrich(ctx, todo, log)
+        await ctx.close()
+        if browser:
+            await browser.close()
     return allrecs

@@ -48,10 +48,9 @@ RED_WORDS = [
 # ---------------------------------------------------------------------------
 HOME_ZIP = "60601"  # only used as the search origin; radius is nationwide
 
-# Cars.com: one search with all six models. If a model slug is wrong,
-# Cars.com just ignores it; see README for how to fix.
+# Cars.com: each model's own nationwide page (verified Oct 2026).
 CARSCOM_MODEL_SLUGS = [
-    "ferrari-488_gtb", "ferrari-488_spider", "ferrari-488_gts",
+    "ferrari-488_gtb", "ferrari-488_spider",
     "ferrari-296_gtb", "ferrari-296_gts",
     "ferrari-f8_tributo", "ferrari-f8_spider",
 ]
@@ -62,7 +61,7 @@ CARSCOM_MODEL_SLUGS = [
 CARGURUS_MODEL_IDS = {
     "488": "d2333",
     "296-GTB": "d3240",
-    "296-GTS": None,
+    "296-GTS": "d3336",
     "F8": "d3048",
 }
 CARGURUS_EXTRA_URLS = []  # paste any extra CarGurus search URLs here
@@ -79,6 +78,9 @@ MAX_PHOTOS = 6  # photos kept per car
 # ---------------------------------------------------------------------------
 MAX_PAGES_PER_SEARCH = 15        # pagination cap per search URL
 PAGE_DELAY_SECONDS = (3, 7)      # random pause between page loads
+# Cars.com and CarGurus block fast visitors, so they get longer pauses.
+SLOW_SITES = {"carscom", "cargurus"}
+SLOW_DELAY_SECONDS = (10, 20)
 MAX_DETAIL_PAGES_PER_RUN = 120   # detail pages visited to fill missing colors/city
 DETAIL_DELAY_SECONDS = (2, 5)
 
