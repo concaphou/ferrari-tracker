@@ -1,0 +1,58 @@
+name: Scrape Ferrari listings
+
+on:
+  schedule:
+    # GitHub cron runs in UTC. These four times cover 11am and 5pm Central in
+    # both CST (winter) and CDT (summer). run.py ignores the ones that don't
+    # land in an 11am/5pm window and never records the same slot twice.
+    - cron: "0 16,17,22,23 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Run now even outside 11am/5pm Central"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest data
+        run: git pull --ff-only
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Scrape and analyze
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
+            python run.py --force
+          else
+            python run.py
+          fi
+
+      - name: Save results
+        if: always()
+        run: |
+          git config user.name "tracker-bot"
+          git config user.email "tracker-bot@users.noreply.github.com"
+          git add data docs
+          git diff --cached --quiet || git commit -m "Snapshot $(TZ=America/Chicago date '+%Y-%m-%d %H:%M %Z')"
+          git pull --rebase && git push
