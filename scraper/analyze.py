@@ -24,9 +24,46 @@ def _load(path):
             r["mileage"] = int(r["mileage"]) if r["mileage"] else None
             r["year"] = int(r["year"]) if r["year"] else None
             r["t"] = datetime.fromisoformat(r["scraped_at"])
-            r["id"] = _ident(r)
+            r["cid"] = _ident(r)
+            r["id"] = _fingerprint(r)
             rows.append(r)
     return rows
+
+
+def _fingerprint(r):
+    """Same model + year + mileage = same car, even if the site listed it twice
+    (e.g. once with a VIN and once with only a link)."""
+    m = r["mileage"]
+    if r["year"] and m is not None and m >= 50:
+        return f'{r["model_group"]}|{r["year"]}|{m}'
+    return r["cid"]
+
+
+def _one_per_day(rows):
+    """Keep only the last run of each day (5pm replaces 11am), one row per car."""
+    last = {}
+    for r in rows:
+        d = r["t"].date()
+        if d not in last or r["t"] > last[d][0]:
+            last[d] = (r["t"], r["snapshot"])
+    keep = {sn for _, sn in last.values()}
+    merged = {}
+    for r in rows:
+        if r["snapshot"] not in keep:
+            continue
+        k = (r["snapshot"], r["id"])
+        if k not in merged:
+            r["cids"] = {r["cid"]}
+            merged[k] = r
+            continue
+        m = merged[k]
+        m["cids"].add(r["cid"])
+        for f in ("price", "exterior_color", "interior_color", "city", "state",
+                  "dealer", "vin", "url"):
+            if (m.get(f) in (None, "", "Unknown")) and r.get(f) not in (None, "", "Unknown"):
+                m[f] = r[f]
+        m["sources"] = "|".join(sorted(set(m["sources"].split("|")) | set(r["sources"].split("|"))))
+    return list(merged.values())
 
 
 def _stats(prices):
@@ -104,8 +141,8 @@ def _city_rank(rows, snapshots, min_cars):
 
 
 def _label(t):
-    # e.g. "Oct 3 am" (built by hand because %-d doesn't work on Windows)
-    return f"{t:%b} {t.day} {'am' if t.hour < 12 else 'pm'}"
+    # e.g. "Oct 3" (built by hand because %-d doesn't work on Windows)
+    return f"{t:%b} {t.day}"
 
 
 def _city(r):
@@ -125,7 +162,7 @@ def _segments(car_rows, snap_idx):
 
 
 def build(history_path, out_path, cache_path=None):
-    rows = _load(history_path)
+    rows = _one_per_day(_load(history_path))
     cache = {}
     if cache_path and os.path.exists(cache_path):
         try:
@@ -211,8 +248,14 @@ def build(history_path, out_path, cache_path=None):
         listings = []
         for r in sorted(cur, key=lambda r: (r["price"] or 9e9)):
             fp = first_price.get(r["id"])
-            info = cache.get(r["id"], {})
-            links = [{"s": src, "u": u} for src, u in (info.get("links") or {}).items() if u]
+            photos, link_map = [], {}
+            for cid in sorted(r["cids"], key=lambda c: -len(cache.get(c, {}).get("photos") or [])):
+                info = cache.get(cid, {})
+                photos = photos or list(info.get("photos") or [])
+                for src, u in (info.get("links") or {}).items():
+                    if u:
+                        link_map.setdefault(src, u)
+            links = [{"s": src, "u": u} for src, u in link_map.items()]
             if not links and r["url"]:
                 links = [{"s": r["sources"].split("|")[0], "u": r["url"]}]
             listings.append({
@@ -222,7 +265,7 @@ def build(history_path, out_path, cache_path=None):
                 "url": r["url"], "src": r["sources"],
                 "days": (r["t"] - first_seen[r["id"]]).days,
                 "drop": (r["price"] - fp) if (fp and r["price"] and r["price"] != fp) else 0,
-                "photos": (info.get("photos") or [])[:6],
+                "photos": photos[:1],
                 "links": links,
             })
 

@@ -136,6 +136,32 @@ def finalize(records, cache, snapshot, now):
             rec["_links"] = {rec["source"]: link} if link else {}
             merged[key] = rec
 
+    # Second pass: the same car can arrive under two keys (VIN from the site's
+    # data feed, link from its listing card). Same model + year + mileage = same car.
+    by_fp = {}
+    for key in list(merged):
+        r = merged[key]
+        miles = to_int(r.get("mileage"))
+        if not (miles and miles >= 50 and to_int(r.get("year"))):
+            continue
+        fp = (r["model_group"], to_int(r.get("year")), miles)
+        if fp not in by_fp:
+            by_fp[fp] = key
+            continue
+        keep_key, drop_key = by_fp[fp], key
+        if len(drop_key) == 17 and len(keep_key) != 17:  # prefer the VIN as the id
+            keep_key, drop_key = drop_key, keep_key
+            by_fp[fp] = keep_key
+        k, d = merged[keep_key], merged.pop(drop_key)
+        for f, v in d.items():
+            if v and not k.get(f):
+                k[f] = v
+        k["_sources"] |= d["_sources"]
+        for src, u in d["_links"].items():
+            k["_links"].setdefault(src, u)
+        if len(d.get("photos") or []) > len(k.get("photos") or []):
+            k["photos"] = d["photos"]
+
     rows, dropped_red = [], 0
     for key, r in merged.items():
         ext, intr = clean_color(r.get("exterior_color")), clean_color(r.get("interior_color"))
@@ -195,7 +221,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--force", action="store_true", help="run even outside the 11am/5pm windows")
     ap.add_argument("--analyze-only", action="store_true")
-    ap.add_argument("--sites", nargs="+", default=["ferrari", "carscom", "cargurus"])
+    ap.add_argument("--sites", nargs="+", default=config.ENABLED_SITES)
     args = ap.parse_args()
 
     from scraper import analyze

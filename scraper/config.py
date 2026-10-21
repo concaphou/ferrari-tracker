@@ -46,6 +46,10 @@ RED_WORDS = [
 # Search pages. Each site is searched nationwide; results are filtered
 # locally, so a search that returns extra cars is fine.
 # ---------------------------------------------------------------------------
+# Which sites to scrape. Cars.com ("carscom") and CarGurus ("cargurus") are
+# paused because they block automated browsers; add them back here to try again.
+ENABLED_SITES = ["ferrari"]
+
 HOME_ZIP = "60601"  # only used as the search origin; radius is nationwide
 
 # Cars.com: each model's own nationwide page (verified Oct 2026).

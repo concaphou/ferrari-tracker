@@ -79,21 +79,15 @@ tr.year td span{font:500 .85rem var(--body);color:var(--muted);margin-left:8px}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 
 .cars{list-style:none;margin:0;padding:0}
-.cars>li{border-bottom:1px solid var(--line);padding:14px 0}
-.photos{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 0 10px;scrollbar-width:none;border-radius:6px}
-.photos::-webkit-scrollbar{display:none}
-.photos a{flex:0 0 82%;max-width:340px;aspect-ratio:4/3;scroll-snap-align:start;background:var(--surface);border-radius:6px;overflow:hidden;display:block}
-.photos img{width:100%;height:100%;object-fit:cover;display:block}
-.photos .none{flex:1;aspect-ratio:auto;padding:14px;color:var(--muted);font-size:.85rem;border:1px dashed var(--line);max-width:none}
-.info{display:grid;grid-template-columns:1fr auto;gap:0 12px}
-.cars .p{font:700 1.25rem var(--cond);text-align:right}
+.cars li{border-bottom:1px solid var(--line)}
+.cars a{display:grid;grid-template-columns:96px 1fr auto;gap:2px 12px;align-items:center;padding:10px 0;text-decoration:none}
+.thumb{grid-row:1/4;width:96px;aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.7rem;text-align:center}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .cars .t{font-weight:600}
-.cars .d{color:var(--muted);font-size:.84rem}
+.cars .p{font:700 1.2rem var(--cond);text-align:right}
+.cars .d{color:var(--muted);font-size:.84rem;grid-column:2/4}
 .cars .drop{color:var(--good);font-size:.84rem;text-align:right}
 .cars .bad{color:var(--bad)}
-.go{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.go a{text-decoration:none;font:600 .9rem var(--body);padding:8px 12px;border-radius:6px;background:var(--ink);color:var(--bg)}
-.go a:first-child{background:var(--giallo);color:var(--giallo-ink)}
 .filters{display:flex;gap:8px;flex-wrap:wrap}
 .legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.82rem;margin-top:8px}
 .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px;background:var(--giallo)}
@@ -143,7 +137,7 @@ async function init() {
     return;
   }
   const t = new Date(DATA.latest_time);
-  $("#updated").textContent = `Updated ${t.toLocaleString("en-US", {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:"America/Chicago"})} CT · ${DATA.snapshot_count} snapshots since ${new Date(DATA.first_time).toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;
+  $("#updated").textContent = `Updated ${t.toLocaleString("en-US", {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:"America/Chicago"})} CT · ${DATA.snapshot_count} days of data since ${new Date(DATA.first_time).toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;
   current = pickModel();
   renderStrip();
   render();
@@ -163,7 +157,7 @@ function renderStrip() {
 
 function render() {
   const M = DATA.by_model[current], c = M.current;
-  const countDelta = c.prev_listed == null ? "" : (c.listed - c.prev_listed === 0 ? "no change" : `${c.listed - c.prev_listed > 0 ? "+" : ""}${c.listed - c.prev_listed} since last run`);
+  const countDelta = c.prev_listed == null ? "" : (c.listed - c.prev_listed === 0 ? "no change" : `${c.listed - c.prev_listed > 0 ? "+" : ""}${c.listed - c.prev_listed} since yesterday`);
   const ch = c.change_7d;
   $("#content").innerHTML = `
     <div class="summary">
@@ -205,7 +199,7 @@ function render() {
         <button data-s="all" aria-pressed="${cityScope === "all"}">All six models</button>
       </div>
       <ul class="cities" id="cities"></ul>
-      <p class="note">Each car is compared with the same model and year listed at the same time, adjusted for mileage. "Below market" counts the snapshots where that city's cars averaged under market. Last ${DATA.city_window_days} days.</p>
+      <p class="note">Each car is compared with the same model and year listed at the same time, adjusted for mileage. "Below market" counts the days that city's cars averaged under market. Last ${DATA.city_window_days} days.</p>
     </section>
 
     <section>
@@ -248,7 +242,7 @@ function renderCities() {
     return `<li><span class="name">${esc(c.city)}</span>
       <span class="pct ${pct < 0 ? "down" : "up"}">${pct > 0 ? "+" : ""}${pct}%</span>
       <span class="bar"><i style="width:${share}%"></i></span>
-      <span class="meta">${c.cars} cars · below market in ${c.snaps_below} of ${c.snaps_present} snapshots${models}</span></li>`;
+      <span class="meta">${c.cars} cars · below market on ${c.snaps_below} of ${c.snaps_present} days${models}</span></li>`;
   }).join("");
 }
 
@@ -256,26 +250,19 @@ function renderCars() {
   const L = DATA.by_model[current].listings, el = $("#cars");
   if (!L.length) { el.innerHTML = `<li class="empty">No cars listed right now.</li>`; return; }
   el.innerHTML = L.slice(0, listLimit).map(c => {
-    const main = c.links[0] ? c.links[0].u : "";
-    const photos = (c.photos || []).length
-      ? c.photos.map((u, k) => `<a href="${esc(main)}" target="_blank" rel="noopener" aria-label="Photo ${k + 1} of ${c.photos.length}"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer"></a>`).join("")
-      : `<a class="none" href="${esc(main)}" target="_blank" rel="noopener">No photos captured yet. They're added as the scraper visits each listing.</a>`;
-    const links = c.links.map(l => `<a href="${esc(l.u)}" target="_blank" rel="noopener">View on ${esc(l.s)}</a>`).join("");
-    return `<li>
-      <div class="photos">${photos}</div>
-      <div class="info">
-        <span class="t">${c.year ?? ""} · ${esc(c.ext)} / ${esc(c.int)}</span>
-        <span class="p">${money(c.price)}</span>
-        <span class="d">${c.miles != null ? c.miles.toLocaleString() + " mi · " : ""}${esc(c.city)} · ${esc(c.dealer)}</span>
-        <span class="drop ${c.drop > 0 ? "bad" : ""}">${c.drop < 0 ? "Down " + kmoney(-c.drop) : c.drop > 0 ? "Up " + kmoney(c.drop) : ""}</span>
-        <span class="d">${c.days ? `Listed ${c.days} days` : "New this week"}${c.photos && c.photos.length > 1 ? ` · ${c.photos.length} photos, swipe to see more` : ""}</span>
-      </div>
-      ${links ? `<div class="go">${links}</div>` : ""}
-    </li>`;
+    const link = c.links[0] || {s: "", u: ""};
+    const photo = (c.photos || [])[0];
+    const thumb = photo ? `<img src="${esc(photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : "No photo";
+    return `<li><a href="${esc(link.u)}" target="_blank" rel="noopener">
+      <span class="thumb">${thumb}</span>
+      <span class="t">${c.year ?? ""} · ${esc(c.ext)} / ${esc(c.int)}</span>
+      <span class="p">${money(c.price)}</span>
+      <span class="d">${c.miles != null ? c.miles.toLocaleString() + " mi · " : ""}${esc(c.city)} · ${esc(c.dealer)}</span>
+      <span class="d">${c.days ? `Listed ${c.days} days` : "New"}${link.s ? " · View on " + esc(link.s) : ""}${c.drop < 0 ? ` · <span class="drop">Down ${kmoney(-c.drop)}</span>` : c.drop > 0 ? ` · <span class="drop bad">Up ${kmoney(c.drop)}</span>` : ""}</span>
+    </a></li>`;
   }).join("");
-  el.querySelectorAll(".photos img").forEach(img => img.addEventListener("error", () => {
-    const strip = img.closest(".photos"); img.parentElement.remove();
-    if (strip && !strip.children.length) strip.remove();
+  el.querySelectorAll(".thumb img").forEach(img => img.addEventListener("error", () => {
+    img.parentElement.textContent = "No photo";
   }));
   if (L.length > listLimit) {
     el.insertAdjacentHTML("afterend", `<button class="more" id="more">Show all ${L.length}</button>`);
