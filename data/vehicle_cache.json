@@ -8932,12 +8932,12 @@
 "dealer": "Ferrari Westlake INQUIRE MORE DETAILS",
 "vin": "ZFF93LMAXN0272759",
 "photos": [
-"https://gcb.evs.onl/d4/10126/13033344/333272519/s/98ffe69adaf544d2bc3bd90246eebc2a.jpg?height=400",
-"https://gcb.evs.onl/d4/10126/13033344/333272532/s/fed81af29e9148709f802237e5a3aff5.jpg?height=400",
-"https://gcb.evs.onl/d4/10126/13033344/333272539/s/17c18d84baf046a09e61e6b8ca8dfcb7.jpg?height=400",
-"https://gcb.evs.onl/d4/10126/13033344/333272551/s/7f9fedab7166486ea9fd2d4147cef3a3.jpg?height=400",
-"https://gcb.evs.onl/d4/10126/13033344/333272558/s/df1c5b4dc38b4a0cb872e56ffa3596b7.jpg?height=400",
-"https://gcb.evs.onl/d4/10126/13033344/333272567/s/d9de966a06a143ae95aa05f1a0a17bd3.jpg?height=400"
+"https://gcb.evs.onl/d4/10126/13033344/333619576/s/98ffe69adaf544d2bc3bd90246eebc2a.jpg?height=400",
+"https://gcb.evs.onl/d4/10126/13033344/333619577/s/fed81af29e9148709f802237e5a3aff5.jpg?height=400",
+"https://gcb.evs.onl/d4/10126/13033344/333619578/s/17c18d84baf046a09e61e6b8ca8dfcb7.jpg?height=400",
+"https://gcb.evs.onl/d4/10126/13033344/333619579/s/7f9fedab7166486ea9fd2d4147cef3a3.jpg?height=400",
+"https://gcb.evs.onl/d4/10126/13033344/333619580/s/df1c5b4dc38b4a0cb872e56ffa3596b7.jpg?height=400",
+"https://gcb.evs.onl/d4/10126/13033344/333619581/s/d9de966a06a143ae95aa05f1a0a17bd3.jpg?height=400"
 ],
 "links": {
 "Ferrari Approved": "https://preowned.ferrari.com/en-US/a/north-america/used-ferrari/usa/ferrari-westlake/f8-spider/IljixbcgVnJGsKsQfDGsrldlE4bLqu6TVblwD1Htz%2BFr2TR4if7VTetr%2Bw13SIxDuIYTFSXJ%2FxUsxkH%2BsPf3Dxa37ulmKHQfYTaAE7ZKEw%3D%3D"
@@ -10827,7 +10827,7 @@
 "dealer": "Ferrari Dallas INQUIRE MORE DETAILS",
 "vin": "ZFF79ALA9K0246273",
 "photos": [
-"https://gcb.evs.onl/d4/2994/12302308/321714665/s/d9868ae778bc48ab96f3ec2bd0d463ef.jpg?height=400",
+"https://gcb.evs.onl/d4/2994/12302308/321714665/s/6dcdac2fc4f745d3a4b469230237cbad.jpg?height=400",
 "https://gcb.evs.onl/d4/2994/12302308/321714668/s/c0daa60cc634442b9ff8d490ec846f67.jpg?height=400",
 "https://gcb.evs.onl/d4/2994/12302308/321714672/o/8e960b01d79246c0a12e273c4c5950d6.jpg?height=400",
 "https://gcb.evs.onl/d4/2994/12302308/321714675/o/255dc27095a141639c0c726f3e4fc498.jpg?height=400",
@@ -12964,6 +12964,101 @@
 ],
 "links": {
 "Ferrari Approved": "https://preowned.ferrari.com/en-US/a/north-america/used-ferrari/usa/ferrari-of-new-england/f8-spider/IljixbcgVnJGsKsQfDGsrlkB04bq3hXr6iZ2Zr%2BQaOZ%2Fs0d7DypQC3qcct9XVLgquIYTFSXJ%2FxVExkH%2Bv%2FfzDRm37ulmKXgYYDCCFLdGFA%3D%3D"
+}
+},
+"ZFF99SLA6S0313992": {
+"exterior_color": "VIOLA HONG KONG",
+"interior_color": "CUOIO",
+"city": "",
+"state": "",
+"dealer": "Ferrari of Fort Lauderdale INQUIRE MORE DETAILS",
+"vin": "ZFF99SLA6S0313992",
+"photos": [
+"https://gcb.evs.onl/d4/3005/14219510/333607258/o/2e9e383dde704c17ae3e3e374ce98dfb.jpg?height=400",
+"https://gcb.evs.onl/d4/3005/14219510/333607266/o/0d04f91315dc46a6b4085aff7d45ab7c.jpg?height=400",
+"https://gcb.evs.onl/d4/3005/14219510/333607275/o/f417f901c7e74700ad01009c66c6c62e.jpg?height=400",
+"https://gcb.evs.onl/d4/3005/14219510/333607281/o/4b97437fc5dc40a7b6cd1ae60f8fe541.jpg?height=400",
+"https://gcb.evs.onl/d4/3005/14219510/333607288/o/8aabdbaefc824d52b88438573ad9926c.jpg?height=400",
+"https://gcb.evs.onl/d4/3005/14219510/333607292/o/b9b5dba4b04a42e0a1aee903d2ecd928.jpg?height=400"
+],
+"links": {
+"Ferrari Approved": "https://preowned.ferrari.com/en-US/a/north-america/used-ferrari/usa/ferrari-of-fort-lauderdale/296-gtb/IljixbcgVnJGsKsQfDGsrocnsBo%2Bcm8ks%2FyxUm0pvGL1EqcLCasC4XmFjOM7jXrTuIYTFS%2FW%2FhVC20H%2Ftvb5Ax237ulmKXofbjOFEL5KEQ%3D%3D"
+}
+},
+"ZFF99SLAXN0282993": {
+"exterior_color": "GRIGIO SCURO",
+"interior_color": "NERO",
+"city": "",
+"state": "",
+"dealer": "Ferrari Dallas INQUIRE MORE DETAILS",
+"vin": "ZFF99SLAXN0282993",
+"photos": [
+"https://gcb.evs.onl/d4/2994/14216494/333533942/o/e865977b4d5a4af78d1c8f6ab036e27d.jpg?height=400",
+"https://gcb.evs.onl/d4/2994/14216494/333533947/o/7ce9405641b14eedbbba506588ae9045.jpg?height=400",
+"https://gcb.evs.onl/d4/2994/14216494/333533956/o/e364cd1e77744b0fbcd8f9a3297a4905.jpg?height=400",
+"https://gcb.evs.onl/d4/2994/14216494/333533963/o/441c574a2c814975ae93b7503ed0e939.jpg?height=400",
+"https://gcb.evs.onl/d4/2994/14216494/333533969/o/70785304045949b3b1bc9d933213e305.jpg?height=400",
+"https://gcb.evs.onl/d4/2994/14216494/333533974/o/08ebe74a41aa403ab00145a85bc480e7.jpg?height=400"
+],
+"links": {
+"Ferrari Approved": "https://preowned.ferrari.com/en-US/a/north-america/used-ferrari/usa/ferrari-dallas/296-gtb/IljixbcgVnJGsKsQfDGsrpN7X7CBNKcjve66l%2Fq91yBG74fVEm8JvtHnc8KITgWUuIYTFS%2FW%2FhUsxkH%2Bv%2Ff5Axy37ulmKXsXaj%2BDE7lMFQ%3D%3D"
+}
+},
+"ZFF99SLAXP0294435": {
+"exterior_color": "ROSSO CORSA",
+"interior_color": "NERO",
+"city": "",
+"state": "",
+"dealer": "Ferrari Pasadena INQUIRE MORE DETAILS",
+"vin": "ZFF99SLAXP0294435",
+"photos": [
+"https://gcb.evs.onl/d4/10682/14215545/333506399/s/ee6193e5caef44f094c96261bc4862d1.jpg?height=400",
+"https://gcb.evs.onl/d4/10682/14215545/333506427/s/7dc261515b1d4f03b641085bdd78f083.jpg?height=400",
+"https://gcb.evs.onl/d4/10682/14215545/333506451/o/854b356bd16c4511924cdec50c09f64d.jpg?height=400",
+"https://gcb.evs.onl/d4/10682/14215545/333506476/MU/1795687078/316f0a965fe1431aa6cba706abc4ab07.jpg?height=400",
+"https://gcb.evs.onl/d4/10682/14215545/333506500/s/e672fe81bcde4e659750c48011fa921f.jpg?height=400",
+"https://gcb.evs.onl/d4/10682/14215545/333506522/s/59264c07136049cdb9d82f2138b008c7.jpg?height=400"
+],
+"links": {
+"Ferrari Approved": "https://preowned.ferrari.com/en-US/a/north-america/used-ferrari/usa/ferrari-pasadena/296-gtb/IljixbcgVnJGsKsQfDGsrl%2FWG2LPY%2FkbbaK6DHOjdHBD%2F9tsh0ZcDv5jU7Q3ttC7uIYTFS%2FW%2FhUs2EH%2BvvH0CRq37ulmKXsYaDGEFL9GEQ%3D%3D"
+}
+},
+"ZFF01SMA6R0307523": {
+"exterior_color": "EXTRA SAMPLE",
+"interior_color": "SABBIA",
+"city": "",
+"state": "",
+"dealer": "Ferrari of Fort Lauderdale INQUIRE MORE DETAILS",
+"vin": "ZFF01SMA6R0307523",
+"photos": [
+"https://gcb.evs.onl/d4/3005/14219512/333607256/o/2e9e383dde704c17ae3e3e374ce98dfb.jpg?height=400",
+"https://gcb.evs.onl/d4/3005/14219512/333607267/o/0d04f91315dc46a6b4085aff7d45ab7c.jpg?height=400",
+"https://gcb.evs.onl/d4/3005/14219512/333607273/o/f417f901c7e74700ad01009c66c6c62e.jpg?height=400",
+"https://gcb.evs.onl/d4/3005/14219512/333607280/o/4b97437fc5dc40a7b6cd1ae60f8fe541.jpg?height=400",
+"https://gcb.evs.onl/d4/3005/14219512/333607287/o/8aabdbaefc824d52b88438573ad9926c.jpg?height=400",
+"https://gcb.evs.onl/d4/3005/14219512/333607291/o/b9b5dba4b04a42e0a1aee903d2ecd928.jpg?height=400"
+],
+"links": {
+"Ferrari Approved": "https://preowned.ferrari.com/en-US/a/north-america/used-ferrari/usa/ferrari-of-fort-lauderdale/296-gts/IljixbcgVnJGsKsQfDGsrtP2ar08TxG%2F3xOSX9fVZsG0bBH08kJSxI3mca%2B5QVBYuIYTHCfW%2FxVC2kH%2Ft%2FL1CBy37ulmKXofbjOFFb5KGA%3D%3D"
+}
+},
+"ZFF01SMA2S0317455": {
+"exterior_color": "NERO",
+"interior_color": "ORANGE",
+"city": "",
+"state": "",
+"dealer": "Scottsdale Ferrari INQUIRE MORE DETAILS",
+"vin": "ZFF01SMA2S0317455",
+"photos": [
+"https://gcb.evs.onl/d4/3033/13728898/333380680/s/949596d151b04bfe922520bbe97b4f5a.jpg?height=400",
+"https://gcb.evs.onl/d4/3033/13728898/333380683/s/f944a8ce24a645769006303ee5cf0508.jpg?height=400",
+"https://gcb.evs.onl/d4/3033/13728898/333380690/s/eb5f17b12a5147f6a1700e4600ce0eb3.jpg?height=400",
+"https://gcb.evs.onl/d4/3033/13728898/333380696/s/84a55142787b4bad9748dd443fc57cbb.jpg?height=400",
+"https://gcb.evs.onl/d4/3033/13728898/333380706/s/247f0f7304394c7daa3cfb3e8e309b73.jpg?height=400",
+"https://gcb.evs.onl/d4/3033/13728898/333380712/s/e1bacfb698af4ae3b2bc0448c0bf5b2a.jpg?height=400"
+],
+"links": {
+"Ferrari Approved": "https://preowned.ferrari.com/en-US/a/north-america/used-ferrari/usa/scottsdale-ferrari/296-gts/IljixbcgVnJGsKsQfDGsrjiGTAnhn0DqIIqy%2B1hRXO1dOGeO%2B9dAwUiLyuODqKgxuIYTHCfW%2FxVG20H%2FtvL0Dxq37ulmKXsaaDCBE7hKFQ%3D%3D"
 }
 }
 }
